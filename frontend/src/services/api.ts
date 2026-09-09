@@ -144,7 +144,7 @@ export const analyzeImages = async (
         throw new Error('Analysis request timed out after 90 seconds. Render backend may be waking up from cold start; please try again.');
       }
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        throw new Error('Backend server unavailable. Please ensure FastAPI is running on http://localhost:8000.');
+        throw new Error(`Backend server unavailable at ${BASE_URL}. Please check if the backend service is running or waking up from Render cold start.`);
       }
       throw error;
     }

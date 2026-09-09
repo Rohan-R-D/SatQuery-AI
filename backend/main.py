@@ -26,10 +26,11 @@ app = FastAPI(
     description="Agentic Vision-Language Assistant Backend for Remote-Sensing Analysis"
 )
 
-# Enable CORS for local development
+# Enable CORS for local development and production deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS if settings.CORS_ORIGINS else ["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:\d+|http://127\.0\.0\.1:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
