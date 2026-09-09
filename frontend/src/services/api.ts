@@ -70,7 +70,7 @@ export const analyzeImages = async (
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
 
   try {
     const response = await fetch(`${BASE_URL}/api/analyze`, {
@@ -141,7 +141,7 @@ export const analyzeImages = async (
     clearTimeout(timeoutId);
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        throw new Error('Analysis request timed out after 30 seconds.');
+        throw new Error('Analysis request timed out after 90 seconds. Render backend may be waking up from cold start; please try again.');
       }
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error('Backend server unavailable. Please ensure FastAPI is running on http://localhost:8000.');
