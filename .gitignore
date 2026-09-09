@@ -26,6 +26,8 @@ ENV/
 .env
 *.env
 !.env.example
+!.env.production
+!frontend/.env.production
 
 # IDE & Editor files
 .vscode/
