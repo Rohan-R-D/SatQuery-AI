@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { InputType, ImageFileMetadata } from '../../types/analysis';
 import { formatFileSize } from '../../utils/formatters';
+import { getApiBaseUrl } from '../../utils/config';
 import { PlayCircle, Loader2, AlertCircle, X } from 'lucide-react';
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8000';
+const BASE_URL = getApiBaseUrl();
 
 interface DemoBarProps {
   onLoadDemo: (
