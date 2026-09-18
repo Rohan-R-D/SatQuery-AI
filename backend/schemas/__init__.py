@@ -1,7 +1,3 @@
-"""
-Backward compatibility re-export layer for schemas.
-All core schema models are defined modularly in `schemas/`.
-"""
 from schemas.tasks import (
     TaskEnum,
     InputTypeEnum,

@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import List, Set
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if available
@@ -10,17 +11,19 @@ if backend_env_path.exists():
 if root_env_path.exists():
     load_dotenv(dotenv_path=root_env_path)
 
+
 class Settings:
     PROJECT_NAME: str = "SatQuery AI Backend"
+    SERVICE_NAME: str = "satquery-backend"
     VERSION: str = "0.1.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    
+
     # Host & Server Config
     HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
     PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
-    
+
     # Security & CORS
-    CORS_ORIGINS: list[str] = [
+    CORS_ORIGINS: List[str] = [
         origin.strip()
         for origin in os.getenv(
             "CORS_ORIGINS",
@@ -28,13 +31,26 @@ class Settings:
         ).split(",")
         if origin.strip()
     ]
-    
-    # API Keys
+
+    # Google Gemini Multimodal Configuration
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    
+    GEMINI_FALLBACK_MODELS: List[str] = [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro",
+        "gemini-3.5-flash",
+        "gemini-flash-latest"
+    ]
+
     # File Upload Limits
-    MAX_FILE_SIZE_MB: int = 50
+    MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "50"))
     MAX_FILE_SIZE_BYTES: int = MAX_FILE_SIZE_MB * 1024 * 1024
-    ALLOWED_EXTENSIONS: set[str] = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+    ALLOWED_EXTENSIONS: Set[str] = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+
+    # Base Paths
+    BASE_DIR: Path = Path(__file__).resolve().parent
+    DEMO_DATA_DIR: Path = BASE_DIR.parent / "demo-data"
+
 
 settings = Settings()
