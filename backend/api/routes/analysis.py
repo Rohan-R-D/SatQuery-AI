@@ -1,13 +1,14 @@
 import logging
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Depends
 
 from schemas.responses import AnalysisResponse
 from utils.validation import validate_analysis_request, verify_image_readability
+from utils.rate_limiter import analyze_rate_limiter
 from agents.supervisor_agent import supervisor_agent
 
 logger = logging.getLogger("satquery.api.analysis")
-router = APIRouter(tags=["Analysis"])
+router = APIRouter(tags=["Analysis"], dependencies=[Depends(analyze_rate_limiter)])
 
 
 @router.post("/analyze", response_model=AnalysisResponse)

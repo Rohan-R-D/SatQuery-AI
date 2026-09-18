@@ -33,7 +33,7 @@ This document serves as the technical memory and development coordinator for the
 | BACKEND-SEC-03 | Impose pixel limits | DONE | None | utils/image_utils.py, utils/validation.py, services/file_service.py, scientific/raster_loader.py | Pillow Image.MAX_IMAGE_PIXELS set to 50M; reject limits with 413. | test_pixel_limits.py |
 | BACKEND-SEC-06 | Sanitize errors | DONE | None | main.py | Global exception handler logs exc but returns generic 500 cleanly to client. | test_error_sanitization.py |
 | BACKEND-SEC-05 | Report filenames | DONE | None | report.py, api/routes/reports.py | Securely generated UUID/hash filenames for Content-Disposition in report routes. | test_report_security.py |
-| BACKEND-SEC-04 | Rate limit /api/analyze | TODO | None | api/routes/analysis.py | Throttle API calls to Gemini and CPU-intensive routes. | Perform burst load |
+| BACKEND-SEC-04 | Rate limit /api/analyze | DONE | None | api/routes/analysis.py, api/routes/upload.py, utils/rate_limiter.py | Throttle API calls to Gemini and CPU-intensive routes (10/min analyze, 30/min upload). | test_rate_limiter.py |
 | BACKEND-DB-01 | Persist executions | TODO | None | orchestration/execution_manager.py, services/audit_service.py | Replace in-memory dicts with SQLAlchemy models to survive restarts. | Verify after restart |
 | BACKEND-001 | Scientific suite | IN_PROGRESS | None | scientific/* | Stubs replaced with concrete metrics for alignment, SAR indices, etc. | Unit tests |
 | BACKEND-002 | Verification layer | TODO | BACKEND-001 | verification/* | Ground truth discrepancy engine for Lane C logic. | Unit tests |
@@ -43,7 +43,6 @@ This document serves as the technical memory and development coordinator for the
 
 ### Known Technical Debt (BLOCKING)
 - **SEC-02 CRITICAL**: /api/audit and /api/executions/{id} currently have zero auth.
-- **SEC-04 HIGH**: /api/analyze is unthrottled, creating vulnerability for CPU starvation and API quota abuse.
 - **DB-01 HIGH**: ExecutionManager and AuditService are volatile in-memory dicts.
 - **DB-02 MEDIUM**: Proposed SQL schema requires FK ON DELETE CASCADE and composite indexing.
 - **DB-03 MEDIUM**: Lack of atomic writes on concurrent trace step updates.

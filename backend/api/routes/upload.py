@@ -1,13 +1,14 @@
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Depends
 from schemas.responses import UploadResponse
 from services.file_service import file_service
+from utils.rate_limiter import upload_rate_limiter
 
 logger = logging.getLogger("satquery.api.upload")
 router = APIRouter(tags=["Upload"])
 
 
-@router.post("/upload", response_model=UploadResponse)
+@router.post("/upload", response_model=UploadResponse, dependencies=[Depends(upload_rate_limiter)])
 async def upload_file(
     file: UploadFile = File(...)
 ):

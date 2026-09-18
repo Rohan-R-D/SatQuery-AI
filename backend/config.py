@@ -49,6 +49,10 @@ class Settings:
     MAX_IMAGE_PIXELS: int = int(os.getenv("MAX_IMAGE_PIXELS", "50000000"))
     ALLOWED_EXTENSIONS: Set[str] = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
+    # Rate Limiting Limits
+    RATE_LIMIT_ANALYZE_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_ANALYZE_PER_MINUTE", "10"))
+    RATE_LIMIT_UPLOAD_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_UPLOAD_PER_MINUTE", "30"))
+
     # Base Paths
     BASE_DIR: Path = Path(__file__).resolve().parent
     DEMO_DATA_DIR: Path = BASE_DIR.parent / "demo-data"
