@@ -17,12 +17,12 @@ async def create_analysis_report(request_data: ReportRequest):
             content=report_content,
             media_type="text/markdown",
             headers={
-                "Content-Disposition": f"attachment; filename={filename}"
+                "Content-Disposition": f'attachment; filename="{filename}"'
             }
         )
     except Exception as e:
         logger.error(f"Error generating analysis report: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate analysis report: {str(e)}"
+            detail="Failed to generate analysis report."
         )

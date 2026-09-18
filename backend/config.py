@@ -27,9 +27,9 @@ class Settings:
         origin.strip()
         for origin in os.getenv(
             "CORS_ORIGINS",
-            "*,https://sat-query-ai-six.vercel.app,http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
+            "https://sat-query-ai-six.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
         ).split(",")
-        if origin.strip()
+        if origin.strip() and origin.strip() != "*"
     ]
 
     # Google Gemini Multimodal Configuration
@@ -46,6 +46,7 @@ class Settings:
     # File Upload Limits
     MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", "50"))
     MAX_FILE_SIZE_BYTES: int = MAX_FILE_SIZE_MB * 1024 * 1024
+    MAX_IMAGE_PIXELS: int = int(os.getenv("MAX_IMAGE_PIXELS", "50000000"))
     ALLOWED_EXTENSIONS: Set[str] = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
     # Base Paths

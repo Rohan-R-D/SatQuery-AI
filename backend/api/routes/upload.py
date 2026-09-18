@@ -29,6 +29,8 @@ async def upload_file(
             dimensions=[width, height],
             message=f"Raster successfully validated ({width}x{height} px, {img_format})."
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Image inspection failed: {str(e)}", exc_info=True)
         raise HTTPException(

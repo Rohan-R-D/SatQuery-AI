@@ -6,6 +6,9 @@ import numpy as np
 import rasterio
 from rasterio.io import MemoryFile
 from PIL import Image
+from config import settings
+
+Image.MAX_IMAGE_PIXELS = settings.MAX_IMAGE_PIXELS
 
 
 @dataclass(frozen=True)
@@ -15,7 +18,7 @@ class RasterData:
     metadata: dict
 
 
-def load_raster(source: bytes | str | Path, max_pixels: int = 25_000_000) -> RasterData:
+def load_raster(source: bytes | str | Path, max_pixels: int = 50_000_000) -> RasterData:
     if max_pixels <= 0:
         raise ValueError("max_pixels must be positive")
     content = source if isinstance(source, bytes) else Path(source).read_bytes()
@@ -26,7 +29,7 @@ def load_raster(source: bytes | str | Path, max_pixels: int = 25_000_000) -> Ras
         with MemoryFile(content) as memory:
             with memory.open() as dataset:
                 if dataset.width * dataset.height * dataset.count > max_pixels:
-                    raise ValueError("Raster exceeds sample limit")
+                    raise ValueError(f"Raster exceeds sample limit of {max_pixels:,} pixels")
                 bands = dataset.read()
                 valid = (dataset.read_masks() > 0) & np.isfinite(bands)
                 crs = dataset.crs
@@ -47,8 +50,8 @@ def load_raster(source: bytes | str | Path, max_pixels: int = 25_000_000) -> Ras
     with Image.open(BytesIO(content)) as image:
         if image.format not in {"PNG", "JPEG"}:
             raise ValueError("Only TIFF, PNG, and JPEG rasters are supported")
-        if image.width * image.height * 3 > max_pixels:
-            raise ValueError("Raster exceeds sample limit")
+        if image.width * image.height > max_pixels:
+            raise ValueError(f"Raster exceeds sample limit of {max_pixels:,} pixels")
         bands = np.array(image.convert("RGB")).transpose(2, 0, 1)
         return RasterData(bands, np.ones(bands.shape, dtype=bool), {
             "width": image.width,

@@ -31,11 +31,29 @@ class FileService:
 
     @staticmethod
     def inspect_image_bytes(image_bytes: bytes) -> Tuple[int, int, str]:
-        """Inspect image dimensions and format from raw bytes."""
-        with Image.open(io.BytesIO(image_bytes)) as img:
-            width, height = img.size
-            img_format = img.format or "UNKNOWN"
-            return width, height, img_format
+        """Inspect image dimensions and format from raw bytes with pixel limit enforcement."""
+        try:
+            with Image.open(io.BytesIO(image_bytes)) as img:
+                width, height = img.size
+                if width * height > settings.MAX_IMAGE_PIXELS:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Image dimensions ({width}x{height} = {width * height:,} pixels) exceed maximum allowed limit of {settings.MAX_IMAGE_PIXELS:,} pixels (50 MP)."
+                    )
+                img_format = img.format or "UNKNOWN"
+                return width, height, img_format
+        except Image.DecompressionBombError as e:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Image exceeds decompression pixel limit: {str(e)}"
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid image format or decoding error: {str(e)}"
+            )
 
     @staticmethod
     def validate_file_constraints(file: UploadFile, param_name: str = "image") -> None:
