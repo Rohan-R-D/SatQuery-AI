@@ -1,12 +1,13 @@
 import logging
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, HTTPException, status, Query, Depends
 from schemas.execution import ExecutionRecord
 from orchestration.execution_manager import execution_manager
 from services.audit_service import audit_service
+from api.deps import verify_admin_key
 
 logger = logging.getLogger("satquery.api.audit")
-router = APIRouter(tags=["Audit & Execution"])
+router = APIRouter(tags=["Audit & Execution"], dependencies=[Depends(verify_admin_key)])
 
 
 @router.get("/executions/{execution_id}", response_model=ExecutionRecord)

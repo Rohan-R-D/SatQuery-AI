@@ -12,6 +12,7 @@ logger = logging.getLogger("satquery.agents.response")
 class ResponseAgent:
     """
     Specialist Agent for Response Synthesis, Evidence Consolidation, and Quality Assurance.
+    Integrates multi-source evidence, verification checks, and 5-factor calibrated confidence.
     """
 
     def __init__(self):
@@ -42,6 +43,10 @@ class ResponseAgent:
         water_regions = agent_output.get("water_regions")
         extra_metrics = agent_output.get("metrics")
         gemini_evidence_strings = agent_output.get("evidence", [])
+        alignment_rmse = agent_output.get("alignment_rmse")
+        verification_res = agent_output.get("verification")
+
+        verification_penalty = verification_res.confidence_penalty if verification_res else 0.0
 
         # 1. Evidence Extraction
         evidence_items = evidence_service.extract_evidence(
@@ -53,14 +58,16 @@ class ResponseAgent:
             artifacts=artifacts
         )
 
-        # 2. Transparent Deterministic Confidence Evaluation
+        # 2. Transparent 5-Factor Calibrated Confidence Evaluation
         confidence_score, confidence_exp = confidence_service.calculate_confidence(
             task_type=task,
             is_success=not is_error,
             evidence_count=len(evidence_items),
             change_percentage=change_percentage,
             has_gemini=has_gemini,
-            error_code=error_code
+            error_code=error_code,
+            alignment_rmse=alignment_rmse,
+            verification_penalty=verification_penalty
         )
 
         is_success = not is_error

@@ -1,4 +1,5 @@
 import io
+import asyncio
 import base64
 import logging
 from typing import Dict, Any, List
@@ -7,6 +8,10 @@ import numpy as np
 from PIL import Image
 
 from services.gemini_service import gemini_service
+from scientific.preprocessing.alignment import coregistration_gate
+from scientific.change_detection.opencv_baseline import opencv_change_detector
+from scientific.geometry.georeferencing import regions_to_geojson_feature_collection
+from agents.verification_agent import verification_agent
 
 logger = logging.getLogger("satquery.agents.change")
 
@@ -14,136 +19,94 @@ logger = logging.getLogger("satquery.agents.change")
 class ChangeAgent:
     """
     Specialist Agent for Bi-Temporal Remote Sensing Change Detection & Explanatory Change VQA.
+    Integrates sub-pixel SIFT/RANSAC co-registration, morphological change mapping,
+    GeoJSON bounding vector generation, and Gemini multimodal temporal reasoning.
     """
 
     def __init__(self):
         self.name = "change_agent"
-        self.description = "Performs OpenCV pixel-difference change detection and Gemini multimodal temporal change interpretation."
+        self.description = "Performs SIFT/RANSAC co-registration, OpenCV change detection, and Gemini temporal change interpretation."
 
-    @staticmethod
-    def _to_base64_data_url(cv_img: np.ndarray) -> str:
-        """Helper to convert OpenCV image array into base64 PNG data URL."""
-        success, buffer = cv2.imencode(".png", cv_img)
-        if not success:
-            return ""
-        b64_str = base64.b64encode(buffer).decode("utf-8")
-        return f"data:image/png;base64,{b64_str}"
-
-    def compute_opencv_change(
+    def _sync_scientific_processing(
         self,
         before_bytes: bytes,
-        after_bytes: bytes,
-        threshold_val: int = 35,
-        min_region_area: int = 50
+        after_bytes: bytes
     ) -> Dict[str, Any]:
-        """Compute pixel differences, morphological mask, contour bounding boxes, and visual overlay."""
+        """Runs CPU-bound Lane A scientific alignment and change detection in worker thread."""
         pil_t1 = Image.open(io.BytesIO(before_bytes)).convert("RGB")
         pil_t2 = Image.open(io.BytesIO(after_bytes)).convert("RGB")
 
-        img1_bgr = cv2.cvtColor(np.array(pil_t1), cv2.COLOR_RGB2BGR)
-        img2_bgr = cv2.cvtColor(np.array(pil_t2), cv2.COLOR_RGB2BGR)
+        np_t1 = np.array(pil_t1)
+        np_t2 = np.array(pil_t2)
 
-        h1, w1 = img1_bgr.shape[:2]
-        h2, w2 = img2_bgr.shape[:2]
+        h1, w1 = np_t1.shape[:2]
+        h2, w2 = np_t2.shape[:2]
 
-        if (h1, w1) != (h2, w2):
-            logger.info(f"Resizing T2 image from {w2}x{h2} to match T1 {w1}x{h1}")
-            img2_bgr = cv2.resize(img2_bgr, (w1, h1), interpolation=cv2.INTER_LINEAR)
+        # 1. Co-Registration Quality Gate (SIFT + RANSAC)
+        aligned_t2, coreg_report = coregistration_gate.align_and_validate(np_t1, np_t2)
+        rmse_val = coreg_report.get("rmse", 0.0)
 
-        gray1 = cv2.cvtColor(img1_bgr, cv2.COLOR_BGR2GRAY)
-        gray2 = cv2.cvtColor(img2_bgr, cv2.COLOR_BGR2GRAY)
+        # 2. Deterministic Pixel Difference Mapping
+        diff_res = opencv_change_detector.detect_changes(np_t1, aligned_t2, threshold_val=32, min_region_area=40)
 
-        diff = cv2.absdiff(gray1, gray2)
-        _, binary_thresh = cv2.threshold(diff, threshold_val, 255, cv2.THRESH_BINARY)
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        morphed = cv2.morphologyEx(binary_thresh, cv2.MORPH_OPEN, kernel)
-        morphed = cv2.morphologyEx(morphed, cv2.MORPH_CLOSE, kernel)
-
-        contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        clean_mask = np.zeros_like(morphed)
-        regions = []
-
-        for cnt in contours:
-            area = int(cv2.contourArea(cnt))
-            if area >= min_region_area:
-                cv2.drawContours(clean_mask, [cnt], -1, 255, thickness=cv2.FILLED)
-                x, y, w, h = cv2.boundingRect(cnt)
-                regions.append({
-                    "x": int(x),
-                    "y": int(y),
-                    "width": int(w),
-                    "height": int(h),
-                    "area": area,
-                    "label": "changed_area"
-                })
-
-        regions.sort(key=lambda r: r["area"], reverse=True)
-
-        changed_pixels = int(np.sum(clean_mask > 0))
-        total_pixels = int(w1 * h1)
-        change_percentage = round((changed_pixels / total_pixels) * 100, 2)
-
-        overlay_bgr = img2_bgr.copy()
-        red_mask = np.zeros_like(img2_bgr)
-        red_mask[clean_mask > 0] = [0, 0, 255]
-
-        cv2.addWeighted(red_mask, 0.45, overlay_bgr, 1.0, 0, overlay_bgr)
-        cv2.drawContours(overlay_bgr, contours, -1, (0, 255, 255), 1)
-
-        diff_map_url = self._to_base64_data_url(diff)
-        change_mask_url = self._to_base64_data_url(clean_mask)
-        overlay_url = self._to_base64_data_url(overlay_bgr)
+        # 3. GeoJSON FeatureCollection Bounding Boxes
+        geojson_fc = regions_to_geojson_feature_collection(
+            regions=diff_res["regions"],
+            image_width=w1,
+            image_height=h1
+        )
 
         return {
-            "change_percentage": change_percentage,
-            "changed_pixels": changed_pixels,
-            "total_pixels": total_pixels,
-            "regions": regions[:15],
-            "difference_map": diff_map_url,
-            "change_mask": change_mask_url,
-            "change_overlay": overlay_url,
-            "overlay_bgr": overlay_bgr
+            "w1": w1,
+            "h1": h1,
+            "w2": w2,
+            "h2": h2,
+            "coreg_report": coreg_report,
+            "rmse": rmse_val,
+            "change_percentage": diff_res["change_percentage"],
+            "changed_pixels": diff_res["changed_pixels"],
+            "total_pixels": diff_res["total_pixels"],
+            "regions": diff_res["regions"],
+            "artifacts": diff_res["artifacts"],
+            "geojson": geojson_fc
         }
 
-    def execute_change_detection(
+    async def execute_change_detection(
         self,
         before_bytes: bytes,
         after_bytes: bytes,
         query: str,
         is_explanatory_vqa: bool = True
     ) -> Dict[str, Any]:
-        """Execute complete bi-temporal pipeline combining OpenCV difference engine and Gemini VLM reasoning."""
+        """Execute complete bi-temporal pipeline combining non-blocking scientific lane and Gemini VLM reasoning."""
         logger.info(f"ChangeAgent: processing bi-temporal change (is_vqa={is_explanatory_vqa})")
 
-        # 1. OpenCV Change Analysis
-        change_res = self.compute_opencv_change(before_bytes, after_bytes)
-        change_percentage = change_res["change_percentage"]
-        changed_pixels = change_res["changed_pixels"]
-        total_pixels = change_res["total_pixels"]
-        regions_list = change_res["regions"]
+        # 1. Lane A: Scientific Processing offloaded to threadpool (ISO-01)
+        lane_a = await asyncio.to_thread(self._sync_scientific_processing, before_bytes, after_bytes)
 
-        artifacts_list = [
-            {"name": "difference_map", "type": "image/png", "url": change_res["difference_map"], "description": "Absolute spectral difference raster"},
-            {"name": "change_mask", "type": "image/png", "url": change_res["change_mask"], "description": "Binary filtered change mask"},
-            {"name": "change_overlay", "type": "image/png", "url": change_res["change_overlay"], "description": "Colorized spatial change overlay on T2"},
-        ]
+        change_percentage = lane_a["change_percentage"]
+        changed_pixels = lane_a["changed_pixels"]
+        total_pixels = lane_a["total_pixels"]
+        regions_list = lane_a["regions"]
+        artifacts_list = lane_a["artifacts"]
+        rmse_val = lane_a["rmse"]
+        coreg_report = lane_a["coreg_report"]
 
         metrics_dict = {
             "Change Percentage": f"{change_percentage}%",
             "Changed Pixels": f"{changed_pixels:,}",
             "Total Pixels": f"{total_pixels:,}",
-            "Connected Regions": f"{len(regions_list)}"
+            "Connected Regions": f"{len(regions_list)}",
+            "Alignment RMSE (px)": str(rmse_val) if rmse_val < 999.0 else "N/A"
         }
 
-        overlay_data_url = change_res["change_overlay"]
+        overlay_data_url = artifacts_list[1]["url"] if len(artifacts_list) > 1 else ""
         if "," in overlay_data_url:
             overlay_bytes = base64.b64decode(overlay_data_url.split(",")[1])
         else:
             overlay_bytes = before_bytes
 
-        # 2. VLM Explanatory Analysis
+        # 2. Lane B: VLM Explanatory Analysis
         is_error = False
         error_code = None
         evidence_strings = []
@@ -163,14 +126,36 @@ class ChangeAgent:
 
             answer = (
                 f"{vlm_answer}\n\n"
-                f"Quantitative OpenCV Summary: {change_percentage}% pixel variation ({changed_pixels:,} / {total_pixels:,} pixels) across {len(regions_list)} region(s).\n"
-                f"Note: Scientific baseline uses OpenCV pixel-difference thresholding engine."
+                f"Quantitative Summary: {change_percentage}% pixel variation ({changed_pixels:,} / {total_pixels:,} pixels) across {len(regions_list)} region(s).\n"
+                f"Co-registration Quality: {coreg_report.get('reason', 'Aligned')}"
             )
         else:
             answer = (
                 f"Bi-temporal change detection detected {change_percentage}% surface variation ({changed_pixels:,} / {total_pixels:,} pixels) "
-                f"across {len(regions_list)} significant spatial region(s)."
+                f"across {len(regions_list)} significant spatial region(s). Alignment RMSE: {rmse_val}px."
             )
+
+        # 3. Lane C: Verification Agent Evaluation
+        verification_res = verification_agent.verify(
+            task="change_vqa" if is_explanatory_vqa else "bi_temporal_change",
+            input_type="bi_temporal",
+            primary_dimensions=(lane_a["w1"], lane_a["h1"]),
+            secondary_dimensions=(lane_a["w2"], lane_a["h2"]),
+            rmse=rmse_val if rmse_val < 999.0 else None,
+            bounding_boxes=regions_list,
+            change_percentage=change_percentage,
+            connected_regions_count=len(regions_list),
+            total_pixels=total_pixels,
+            vlm_answer=answer,
+            lane_a_metrics={"change_percentage": change_percentage}
+        )
+
+        # Determine model description based on whether Gemini VLM was available
+        model_name = (
+            "OpenCV Difference Engine + SIFT Alignment + Gemini Multimodal VLM"
+            if not is_error else
+            "OpenCV Difference Engine + SIFT Alignment (Deterministic Baseline)"
+        )
 
         return {
             "answer": answer,
@@ -181,9 +166,12 @@ class ChangeAgent:
             "artifacts": artifacts_list,
             "metrics": metrics_dict,
             "evidence": evidence_strings,
-            "is_error": is_error,
+            "geojson": lane_a["geojson"],
+            "verification": verification_res,
+            "alignment_rmse": rmse_val if rmse_val < 999.0 else None,
+            "is_error": False,  # Lane A deterministic pipeline succeeded
             "error_code": error_code,
-            "model_used": "OpenCV Difference Engine + Gemini Multimodal VLM"
+            "model_used": model_name
         }
 
 

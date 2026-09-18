@@ -6,7 +6,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 
 from config import settings
+from database.session import init_db
 from api.routes import api_router
+
+# Initialize persistent SQLite database schema
+init_db()
 from agents.supervisor_agent import supervisor_agent, agent_orchestrator
 from orchestration.router import task_router
 from orchestration.model_registry import model_registry
@@ -43,6 +47,20 @@ if demo_data_path.exists():
 # Mount API Routers under /api and also at root level for maximum compatibility
 app.include_router(api_router, prefix="/api")
 app.include_router(api_router)
+
+
+@app.get("/", tags=["System"])
+async def root_index():
+    """Root index providing service overview and documentation links."""
+    return {
+        "service": settings.SERVICE_NAME,
+        "name": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "status": "online",
+        "documentation": "/docs",
+        "health_check": "/api/health",
+        "api_prefix": "/api"
+    }
 
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])

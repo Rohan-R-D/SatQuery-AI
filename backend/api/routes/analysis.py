@@ -11,7 +11,7 @@ logger = logging.getLogger("satquery.api.analysis")
 router = APIRouter(tags=["Analysis"], dependencies=[Depends(analyze_rate_limiter)])
 
 
-@router.post("/analyze", response_model=AnalysisResponse)
+@router.post("/analyze", response_model=AnalysisResponse, dependencies=[Depends(analyze_rate_limiter)])
 async def analyze_general(
     image: UploadFile = File(...),
     second_image: Optional[UploadFile] = File(None),

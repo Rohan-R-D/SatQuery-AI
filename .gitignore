@@ -38,3 +38,8 @@ ENV/
 
 # OS generated files
 Thumbs.db
+
+# Database files
+*.db
+*.db-shm
+*.db-wal

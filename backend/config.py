@@ -22,7 +22,8 @@ class Settings:
     HOST: str = os.getenv("BACKEND_HOST", "0.0.0.0")
     PORT: int = int(os.getenv("BACKEND_PORT", "8000"))
 
-    # Security & CORS
+    # Security & Authentication
+    ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
     CORS_ORIGINS: List[str] = [
         origin.strip()
         for origin in os.getenv(
@@ -52,6 +53,9 @@ class Settings:
     # Rate Limiting Limits
     RATE_LIMIT_ANALYZE_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_ANALYZE_PER_MINUTE", "10"))
     RATE_LIMIT_UPLOAD_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_UPLOAD_PER_MINUTE", "30"))
+
+    # Database Configuration
+    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{Path(__file__).resolve().parent / 'satquery.db'}")
 
     # Base Paths
     BASE_DIR: Path = Path(__file__).resolve().parent
