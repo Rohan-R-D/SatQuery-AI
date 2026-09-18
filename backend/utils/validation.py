@@ -68,14 +68,27 @@ def validate_analysis_request(
         validate_image_file(second_image, param_name="second_image")
 
 async def verify_image_readability(file: UploadFile) -> None:
-    """Verify that the uploaded file can be opened and parsed as a valid image."""
+    """Verify that the uploaded file can be opened and parsed as a valid image within pixel safety limits."""
     try:
         content = await file.read()
         file.file.seek(0)  # Reset file pointer after reading
         
-        # Attempt to open with PIL
-        img = Image.open(io.BytesIO(content))
-        img.verify()
+        # Attempt to open with PIL and inspect dimensions before full decode
+        with Image.open(io.BytesIO(content)) as img:
+            width, height = img.size
+            if width * height > settings.MAX_IMAGE_PIXELS:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Image dimensions ({width}x{height} = {width * height:,} pixels) exceed maximum allowed limit of {settings.MAX_IMAGE_PIXELS:,} pixels (50 MP)."
+                )
+            img.verify()
+    except Image.DecompressionBombError as e:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Image exceeds decompression pixel limit: {str(e)}"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
