@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from services.gemini_service import gemini_service
+from ai.adapters.model_adapter import get_active_vlm_adapter
 
 logger = logging.getLogger("satquery.agents.grounding")
 
@@ -50,8 +50,10 @@ class GroundingAgent:
 
     def execute_grounding(self, image_bytes: bytes, query: str) -> Dict[str, Any]:
         """Execute visual grounding and region localization."""
-        logger.info(f"GroundingAgent: executing spatial localization for query='{query}'")
-        res = gemini_service.locate_regions(image_bytes, query)
+        adapter = get_active_vlm_adapter()
+        provider_name = adapter.get_provider_name()
+        logger.info(f"GroundingAgent: executing spatial localization via {provider_name} for query='{query}'")
+        res = adapter.locate_regions(image_bytes, query)
 
         boxes = res.get("bounding_boxes", [])
         artifacts = []
@@ -73,8 +75,9 @@ class GroundingAgent:
             "artifacts": artifacts,
             "is_error": res.get("is_error", False),
             "error_code": res.get("error_code"),
-            "model_used": "Gemini Multimodal VLM + Grounding Engine"
+            "model_used": f"{provider_name} + Grounding Engine"
         }
+
 
 
 grounding_agent = GroundingAgent()

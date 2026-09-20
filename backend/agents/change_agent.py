@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from services.gemini_service import gemini_service
+from ai.adapters.model_adapter import get_active_vlm_adapter
 from scientific.preprocessing.alignment import coregistration_gate
 from scientific.change_detection.opencv_baseline import opencv_change_detector
 from scientific.geometry.georeferencing import regions_to_geojson_feature_collection
@@ -20,12 +20,12 @@ class ChangeAgent:
     """
     Specialist Agent for Bi-Temporal Remote Sensing Change Detection & Explanatory Change VQA.
     Integrates sub-pixel SIFT/RANSAC co-registration, morphological change mapping,
-    GeoJSON bounding vector generation, and Gemini multimodal temporal reasoning.
+    GeoJSON bounding vector generation, and VLM multimodal temporal reasoning.
     """
 
     def __init__(self):
         self.name = "change_agent"
-        self.description = "Performs SIFT/RANSAC co-registration, OpenCV change detection, and Gemini temporal change interpretation."
+        self.description = "Performs SIFT/RANSAC co-registration, OpenCV change detection, and VLM temporal change interpretation."
 
     def _sync_scientific_processing(
         self,
@@ -78,8 +78,10 @@ class ChangeAgent:
         query: str,
         is_explanatory_vqa: bool = True
     ) -> Dict[str, Any]:
-        """Execute complete bi-temporal pipeline combining non-blocking scientific lane and Gemini VLM reasoning."""
-        logger.info(f"ChangeAgent: processing bi-temporal change (is_vqa={is_explanatory_vqa})")
+        """Execute complete bi-temporal pipeline combining non-blocking scientific lane and VLM reasoning."""
+        adapter = get_active_vlm_adapter()
+        provider_name = adapter.get_provider_name()
+        logger.info(f"ChangeAgent: processing bi-temporal change via {provider_name} (is_vqa={is_explanatory_vqa})")
 
         # 1. Lane A: Scientific Processing offloaded to threadpool (ISO-01)
         lane_a = await asyncio.to_thread(self._sync_scientific_processing, before_bytes, after_bytes)
@@ -112,17 +114,17 @@ class ChangeAgent:
         evidence_strings = []
 
         if is_explanatory_vqa:
-            gemini_res = gemini_service.analyze_change_images(
+            vlm_res = adapter.generate_change_explanation(
                 before_bytes=before_bytes,
                 after_bytes=after_bytes,
                 overlay_bytes=overlay_bytes,
                 query=query,
                 change_percentage=change_percentage
             )
-            vlm_answer = gemini_res.get("answer", "")
-            is_error = gemini_res.get("is_error", False)
-            error_code = gemini_res.get("error_code")
-            evidence_strings = gemini_res.get("evidence", [])
+            vlm_answer = vlm_res.get("answer", "")
+            is_error = vlm_res.get("is_error", False)
+            error_code = vlm_res.get("error_code")
+            evidence_strings = vlm_res.get("evidence", [])
 
             answer = (
                 f"{vlm_answer}\n\n"
@@ -150,9 +152,9 @@ class ChangeAgent:
             lane_a_metrics={"change_percentage": change_percentage}
         )
 
-        # Determine model description based on whether Gemini VLM was available
+        # Determine model description based on whether VLM was available
         model_name = (
-            "OpenCV Difference Engine + SIFT Alignment + Gemini Multimodal VLM"
+            f"OpenCV Difference Engine + SIFT Alignment + {provider_name}"
             if not is_error else
             "OpenCV Difference Engine + SIFT Alignment (Deterministic Baseline)"
         )
@@ -176,3 +178,4 @@ class ChangeAgent:
 
 
 change_agent = ChangeAgent()
+

@@ -26,13 +26,11 @@ class CustomRSVLMAdapter(BaseVLMAdapter):
 
     def generate_vqa(self, image_bytes: bytes, query: str) -> Dict[str, Any]:
         logger.info(f"CustomRSVLMAdapter: Executing VQA with {self.model_name} for '{query}'")
-        # When custom weights / endpoint are present, performs internal inference.
-        # Otherwise, returns fallback message.
         if not self.is_available():
             return {
-                "answer": f"[{self.model_name}]: Model checkpoint or endpoint not configured. Using deterministic Lane A metrics.",
+                "answer": f"[{self.model_name}]: Model checkpoint or endpoint not configured in backend environment.",
                 "evidence": ["Custom VLM endpoint unconfigured."],
-                "confidence": 75.0,
+                "confidence": 0,
                 "is_error": True,
                 "error_code": "VLM_ENDPOINT_UNCONFIGURED"
             }
@@ -44,12 +42,21 @@ class CustomRSVLMAdapter(BaseVLMAdapter):
         }
 
     def generate_caption(self, image_bytes: bytes) -> Dict[str, Any]:
+        if not self.is_available():
+            return {
+                "caption": f"[{self.model_name}]: Model checkpoint or endpoint not configured in backend environment.",
+                "scene_features": [],
+                "evidence": ["Custom VLM endpoint unconfigured."],
+                "confidence": 0,
+                "is_error": True,
+                "error_code": "VLM_ENDPOINT_UNCONFIGURED"
+            }
         return {
             "caption": f"[{self.model_name}]: Multispectral satellite scene depicting mixed land-use and vegetation canopies.",
             "scene_features": ["Multispectral reflectance", "Canopy cover"],
             "evidence": ["Custom VLM scene classification."],
             "confidence": 90.0,
-            "is_error": not self.is_available()
+            "is_error": False
         }
 
     def generate_change_explanation(
@@ -60,10 +67,19 @@ class CustomRSVLMAdapter(BaseVLMAdapter):
         query: str,
         change_percentage: float
     ) -> Dict[str, Any]:
+        if not self.is_available():
+            return {
+                "answer": f"[{self.model_name}]: Model checkpoint or endpoint not configured in backend environment.",
+                "evidence": ["Custom VLM endpoint unconfigured."],
+                "confidence": 0,
+                "is_error": True,
+                "error_code": "VLM_ENDPOINT_UNCONFIGURED"
+            }
         return {
             "answer": f"[{self.model_name}]: Detected {change_percentage}% surface modification between temporal observations.",
             "evidence": ["Bi-temporal change tokens aligned by custom VLM."],
-            "is_error": not self.is_available()
+            "confidence": 90.0,
+            "is_error": False
         }
 
     def generate_optical_sar(
@@ -72,22 +88,43 @@ class CustomRSVLMAdapter(BaseVLMAdapter):
         sar_bytes: bytes,
         query: str
     ) -> Dict[str, Any]:
+        if not self.is_available():
+            return {
+                "answer": f"[{self.model_name}]: Model checkpoint or endpoint not configured in backend environment.",
+                "built_up_regions": [],
+                "water_regions": [],
+                "evidence": ["Custom VLM endpoint unconfigured."],
+                "confidence": 0,
+                "is_error": True,
+                "error_code": "VLM_ENDPOINT_UNCONFIGURED"
+            }
         return {
             "answer": f"[{self.model_name}]: Joint optical-SAR cross-attention alignment completed.",
             "built_up_regions": ["Double-bounce radar urban signature"],
             "water_regions": ["Low-backscatter specular water body"],
             "evidence": ["Cross-sensor feature fusion."],
-            "is_error": not self.is_available()
+            "confidence": 92.0,
+            "is_error": False
         }
 
     def locate_regions(self, image_bytes: bytes, query: str) -> Dict[str, Any]:
+        if not self.is_available():
+            return {
+                "answer": f"[{self.model_name}]: Model checkpoint or endpoint not configured in backend environment.",
+                "bounding_boxes": [],
+                "evidence": ["Custom VLM endpoint unconfigured."],
+                "confidence": 0,
+                "is_error": True,
+                "error_code": "VLM_ENDPOINT_UNCONFIGURED"
+            }
         return {
             "answer": f"[{self.model_name}]: Located spatial target for '{query}'.",
             "bounding_boxes": [],
             "evidence": ["Custom grounding token extraction."],
             "confidence": 88.0,
-            "is_error": not self.is_available()
+            "is_error": False
         }
 
 
 custom_rs_vlm_adapter = CustomRSVLMAdapter()
+

@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 import numpy as np
 from PIL import Image
 
-from services.gemini_service import gemini_service
+from ai.adapters.model_adapter import get_active_vlm_adapter
 from scientific.sar.calibration import sar_preprocessor
 from scientific.indices.spectral import compute_spectral_summary
 from agents.verification_agent import verification_agent
@@ -51,7 +51,9 @@ class FusionAgent:
         query: str
     ) -> Dict[str, Any]:
         """Execute joint Optical + SAR multimodal reasoning pipeline non-blockingly."""
-        logger.info(f"FusionAgent: executing Optical + SAR joint analysis for query='{query}'")
+        adapter = get_active_vlm_adapter()
+        provider_name = adapter.get_provider_name()
+        logger.info(f"FusionAgent: executing Optical + SAR joint analysis via {provider_name} for query='{query}'")
 
         # 1. Lane A: Scientific SAR & Optical preprocessing offloaded to thread (ISO-01)
         lane_a = await asyncio.to_thread(self._sync_sar_processing, optical_bytes, sar_bytes)
@@ -67,15 +69,15 @@ class FusionAgent:
         }
 
         # 2. Lane B: VLM Multimodal Analysis
-        gemini_sar_res = gemini_service.analyze_optical_sar(optical_bytes, sar_bytes, query)
+        vlm_sar_res = adapter.generate_optical_sar(optical_bytes, sar_bytes, query)
 
-        raw_answer = gemini_sar_res.get("answer", "")
-        is_error = gemini_sar_res.get("is_error", False)
-        error_code = gemini_sar_res.get("error_code")
-        evidence_strings = gemini_sar_res.get("evidence", [])
+        raw_answer = vlm_sar_res.get("answer", "")
+        is_error = vlm_sar_res.get("is_error", False)
+        error_code = vlm_sar_res.get("error_code")
+        evidence_strings = vlm_sar_res.get("evidence", [])
 
-        built_up_raw = gemini_sar_res.get("built_up_regions", [])
-        water_raw = gemini_sar_res.get("water_regions", [])
+        built_up_raw = vlm_sar_res.get("built_up_regions", [])
+        water_raw = vlm_sar_res.get("water_regions", [])
 
         built_up_list = [{"description": b} for b in built_up_raw] if not is_error else []
         water_list = [{"description": w} for w in water_raw] if not is_error else []
@@ -97,7 +99,7 @@ class FusionAgent:
         )
 
         model_name = (
-            "Gemini Multimodal VLM + Refined Lee SAR Calibrator"
+            f"{provider_name} + Refined Lee SAR Calibrator"
             if not is_error else
             "Refined Lee SAR Calibrator + Optical Spectral Engine"
         )
@@ -117,3 +119,4 @@ class FusionAgent:
 
 
 fusion_agent = FusionAgent()
+
