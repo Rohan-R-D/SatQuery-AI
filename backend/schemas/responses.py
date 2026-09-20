@@ -2,8 +2,8 @@ from enum import Enum
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
-from schemas.evidence import EvidenceItem, RegionBoundingBox, AnalysisArtifact
-from schemas.execution import TraceStep
+from .evidence import EvidenceItem, RegionBoundingBox, AnalysisArtifact
+from .execution import TraceStep
 
 
 class HealthResponse(BaseModel):

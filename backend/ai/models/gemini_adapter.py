@@ -1,6 +1,6 @@
 from typing import Dict, Any
-from ai.models.base_model import BaseVLMAdapter
-from services.gemini_service import gemini_service
+from .base_model import BaseVLMAdapter
+from backend.services.gemini_service import gemini_service
 
 
 class GeminiAdapter(BaseVLMAdapter):

@@ -8,10 +8,10 @@ scene captioning, evidence integration, and structured output normalization.
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from ai.adapters.model_adapter import ModelAdapterFactory, get_active_vlm_adapter
-from ai.evidence_interface import ScientificEvidence, format_evidence_for_prompt
-from ai.models.base_model import BaseVLMAdapter
-from ai.prompts import (
+from backend.ai.adapters.model_adapter import ModelAdapterFactory, get_active_vlm_adapter
+from backend.ai.evidence_interface import ScientificEvidence, format_evidence_for_prompt
+from backend.ai.models.base_model import BaseVLMAdapter
+from backend.ai.prompts import (
     EVIDENCE_AWARE_VQA_PROMPT,
     GENERAL_VQA_PROMPT,
     REMOTE_SENSING_VQA_PROMPT,
@@ -90,10 +90,10 @@ def resolve_adapter(provider_override: Optional[str] = None) -> BaseVLMAdapter:
     if provider_override:
         provider_key = provider_override.lower().strip()
         if provider_key in {"gemini", "gemini-vlm"}:
-            from ai.models.gemini_adapter import gemini_adapter
+            from backend.ai.models.gemini_adapter import gemini_adapter
             return gemini_adapter
         elif provider_key in {"custom", "custom_rs_vlm", "qwen", "geochat", "local"}:
-            from ai.models.custom_rs_vlm_adapter import custom_rs_vlm_adapter
+            from backend.ai.models.custom_rs_vlm_adapter import custom_rs_vlm_adapter
             return custom_rs_vlm_adapter
 
     return get_active_vlm_adapter()

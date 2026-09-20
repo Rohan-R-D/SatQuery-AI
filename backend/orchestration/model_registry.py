@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, List, Optional
-from schemas.responses import ModelInfo, ModelStatusEnum, ModelListResponse
+from backend.schemas.responses import ModelInfo, ModelStatusEnum, ModelListResponse
 
 logger = logging.getLogger("satquery.orchestration.model_registry")
 

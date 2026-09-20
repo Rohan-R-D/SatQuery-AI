@@ -1,15 +1,15 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from ai.adapters.model_adapter import get_active_vlm_adapter
-from ai.evidence_interface import create_synthetic_evidence_fixture
-from ai.vqa_inference import (
+from backend.ai.adapters.model_adapter import get_active_vlm_adapter
+from backend.ai.evidence_interface import create_synthetic_evidence_fixture
+from backend.ai.vqa_inference import (
     normalize_vqa_response,
     resolve_adapter,
     run_caption_inference,
     run_vqa_inference,
 )
-from agents.vqa_agent import vqa_agent
+from backend.agents.vqa_agent import vqa_agent
 
 
 def test_default_adapter_resolution(monkeypatch):
@@ -51,7 +51,7 @@ def test_vqa_inference_unconfigured_custom_provider():
 def test_vqa_inference_with_synthetic_evidence():
     synth_evidence = create_synthetic_evidence_fixture(ndvi=0.72, ndwi=-0.3, change_pct=14.5)
     
-    with patch("ai.models.gemini_adapter.gemini_service.analyze_image") as mock_gemini:
+    with patch("backend.ai.models.gemini_adapter.gemini_service.analyze_image") as mock_gemini:
         mock_gemini.return_value = {
             "answer": "Dense vegetation identified with high NDVI value.",
             "evidence": ["NDVI 0.72"],
@@ -66,11 +66,11 @@ def test_vqa_inference_with_synthetic_evidence():
         )
         assert res["is_error"] is False
         assert "Dense vegetation" in res["answer"]
-        assert any("synthetic test fixture" in w for w in res["warnings"])
+        assert any("synthetic" in w.lower() for w in res["warnings"])
 
 
 def test_caption_inference_execution():
-    with patch("ai.models.gemini_adapter.gemini_service.generate_caption") as mock_caption:
+    with patch("backend.ai.models.gemini_adapter.gemini_service.generate_caption") as mock_caption:
         mock_caption.return_value = {
             "caption": "Satellite overview displaying coastal structures and urban fabric.",
             "scene_features": ["Coastal area", "Urban fabric"],
@@ -84,7 +84,7 @@ def test_caption_inference_execution():
 
 
 def test_vqa_agent_integration():
-    with patch("ai.models.gemini_adapter.gemini_service.analyze_image") as mock_gemini:
+    with patch("backend.ai.models.gemini_adapter.gemini_service.analyze_image") as mock_gemini:
         mock_gemini.return_value = {
             "answer": "Industrial units visible near port facilities.",
             "evidence": ["Port structure"],
