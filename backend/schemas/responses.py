@@ -27,6 +27,13 @@ class ModelInfo(BaseModel):
     tasks: Optional[List[str]] = Field(default=None, description="List of supported task IDs")
     status: ModelStatusEnum = Field(description="Operational readiness status")
     description: Optional[str] = Field(default=None, description="Detailed description of model capabilities")
+    version: Optional[str] = Field(default=None, description="Model version string")
+    provider: Optional[str] = Field(default=None, description="Model provider identifier")
+    execution_type: Optional[str] = Field(default=None, description="Execution environment (cloud_api, local_weights, local_server)")
+    hardware_req: Optional[str] = Field(default=None, description="VRAM / hardware requirement estimate")
+    license: Optional[str] = Field(default=None, description="Model license identifier")
+    limitations: Optional[List[str]] = Field(default=None, description="List of known limitations")
+
 
 
 class ModelListResponse(BaseModel):
