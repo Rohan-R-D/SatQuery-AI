@@ -130,8 +130,17 @@ class ModelRegistry:
         status_filter: Optional[ModelStatusEnum] = None
     ) -> ModelListResponse:
         """Return list of models matching optional filters."""
+        from backend.ai.models.geochat_adapter import geochat_adapter
+        from backend.ai.models.gemini_adapter import gemini_adapter
+
         models: List[ModelInfo] = []
         for model in self._models.values():
+            # Dynamic operational status update
+            if model.id in {"geochat", "geochat-7b"} and geochat_adapter.is_available():
+                model.status = ModelStatusEnum.AVAILABLE
+            elif model.id == "gemini-vlm" and gemini_adapter.is_available():
+                model.status = ModelStatusEnum.TEMPORARY_BASELINE
+
             if task and model.tasks and task not in model.tasks:
                 continue
             if status_filter and model.status != status_filter:

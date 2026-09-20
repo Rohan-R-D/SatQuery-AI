@@ -1,8 +1,8 @@
 """
-SatQuery AI - Scientific Evidence Interface.
+SatQuery AI - Scientific Evidence Interface & Evidence Fusion.
 
 Defines the contract and helper functions for incorporating Lane A deterministic
-scientific measurements (spectral indices, co-registration, SAR backscatter, feature bounding boxes)
+scientific measurements (spectral indices, BigEarthNet land-cover predictions, SAR backscatter, bounding boxes)
 into Lane B Vision-Language Model reasoning contexts and Lane C fact-checking verification.
 """
 
@@ -13,10 +13,11 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class ScientificEvidence:
     """
-    Standardized dataclass representing Lane A scientific measurement outputs.
+    Standardized dataclass representing Lane A scientific measurement and classification outputs.
     """
     detected_regions: List[Dict[str, Any]] = field(default_factory=list)
     bounding_boxes: List[Dict[str, Any]] = field(default_factory=list)
+    land_cover_predictions: Dict[str, Any] = field(default_factory=dict)  # BigEarthNet predictions
     change_percentage: Optional[float] = None
     spectral_indices: Dict[str, float] = field(default_factory=dict)
     sar_statistics: Dict[str, Any] = field(default_factory=dict)
@@ -31,6 +32,7 @@ class ScientificEvidence:
         return {
             "detected_regions": self.detected_regions,
             "bounding_boxes": self.bounding_boxes,
+            "land_cover_predictions": self.land_cover_predictions,
             "change_percentage": self.change_percentage,
             "spectral_indices": self.spectral_indices,
             "sar_statistics": self.sar_statistics,
@@ -49,6 +51,7 @@ class ScientificEvidence:
         return cls(
             detected_regions=data.get("detected_regions", []),
             bounding_boxes=data.get("bounding_boxes", []),
+            land_cover_predictions=data.get("land_cover_predictions", {}),
             change_percentage=data.get("change_percentage"),
             spectral_indices=data.get("spectral_indices", {}),
             sar_statistics=data.get("sar_statistics", {}),
@@ -63,6 +66,7 @@ class ScientificEvidence:
 def format_evidence_for_prompt(evidence: Optional[ScientificEvidence]) -> str:
     """
     Formats scientific evidence into a clean, structured string block for VLM prompting.
+    Injects physical measurements and BigEarthNet land-cover predictions into VLM prompt contexts.
     """
     if not evidence:
         return "No scientific evidence attached."
@@ -71,24 +75,42 @@ def format_evidence_for_prompt(evidence: Optional[ScientificEvidence]) -> str:
     if evidence.is_synthetic:
         lines.append("[NOTE: Synthetic scientific fixture data for testing]")
 
+    # 1. BigEarthNet Local Land-Cover Predictions
+    if evidence.land_cover_predictions:
+        top_preds = evidence.land_cover_predictions.get("top_predictions", [])
+        if top_preds:
+            formatted_preds = [f"{p['class_name']} ({p['probability']*100:.1f}%)" for p in top_preds[:3] if isinstance(p, dict)]
+            lines.append(f"- Measured Land Cover (BIFOLD BigEarthNet v2.0): {', '.join(formatted_preds)}")
+        elif "labels" in evidence.land_cover_predictions:
+            labels = evidence.land_cover_predictions.get("labels", [])
+            lines.append(f"- Measured Land Cover (BIFOLD BigEarthNet v2.0): {', '.join(labels)}")
+
+    # 2. Measured Spectral Indices
     if evidence.spectral_indices:
         indices_str = ", ".join(f"{k}={v:.3f}" for k, v in evidence.spectral_indices.items())
         lines.append(f"- Measured Spectral Indices: {indices_str}")
 
+    # 3. SAR Backscatter Statistics
     if evidence.sar_statistics:
         sar_str = ", ".join(f"{k}={v}" for k, v in evidence.sar_statistics.items())
         lines.append(f"- Measured SAR Backscatter: {sar_str}")
 
+    # 4. Bi-Temporal Change Percentage
     if evidence.change_percentage is not None:
         lines.append(f"- Measured Surface Change: {evidence.change_percentage:.2f}%")
 
+    # 5. Feature Bounding Boxes / Detected Regions
     if evidence.detected_regions:
         lines.append(f"- Detected Feature Regions: {len(evidence.detected_regions)} regions identified")
 
     if evidence.warnings:
         lines.append(f"- Scientific Measurement Warnings: {'; '.join(evidence.warnings)}")
 
-    return "\n".join(lines) if lines else "General scientific metadata attached."
+    if not lines:
+        return "General scientific metadata attached."
+
+    lines.append("\nCRITICAL INSTRUCTION: Your visual reasoning MUST strictly align with the physical measurements above. Do NOT contradict the measured land-cover classes or spectral index values.")
+    return "\n".join(lines)
 
 
 def create_synthetic_evidence_fixture(
@@ -96,7 +118,8 @@ def create_synthetic_evidence_fixture(
     ndwi: float = -0.15,
     sar_vv_mean_db: float = -12.4,
     change_pct: Optional[float] = None,
-    num_regions: int = 2
+    num_regions: int = 2,
+    land_cover_classes: Optional[List[str]] = None
 ) -> ScientificEvidence:
     """
     Generates a synthetic scientific evidence fixture for testing.
@@ -106,14 +129,22 @@ def create_synthetic_evidence_fixture(
         {"id": i, "label": f"synthetic_region_{i}", "bbox": [10 * i, 20 * i, 50, 50]}
         for i in range(num_regions)
     ]
+    lc_classes = land_cover_classes or ["Coniferous forest", "Discontinuous urban fabric"]
+    lc_preds = {
+        "labels": lc_classes,
+        "probabilities": {cls: 0.85 for cls in lc_classes},
+        "top_predictions": [{"class_name": cls, "probability": 0.85} for cls in lc_classes],
+        "model_id": "BIFOLD-BigEarthNetv2-0/resnet50-s2-v0.2.0 (Synthetic)",
+    }
     return ScientificEvidence(
         detected_regions=regions,
         bounding_boxes=[r["bbox"] for r in regions],
+        land_cover_predictions=lc_preds,
         change_percentage=change_pct,
         spectral_indices={"NDVI": ndvi, "NDWI": ndwi},
         sar_statistics={"vv_mean_db": sar_vv_mean_db, "vh_mean_db": sar_vv_mean_db - 6.0},
         confidence=90.0,
         warnings=["Synthetic test fixture - not real satellite measurements"],
-        processing_metadata={"pipeline": "synthetic_fixture_generator", "version": "0.1"},
+        processing_metadata={"pipeline": "synthetic_fixture_generator", "version": "0.2"},
         is_synthetic=True
     )

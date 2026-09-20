@@ -92,7 +92,13 @@ def resolve_adapter(provider_override: Optional[str] = None) -> BaseVLMAdapter:
         if provider_key in {"gemini", "gemini-vlm"}:
             from backend.ai.models.gemini_adapter import gemini_adapter
             return gemini_adapter
-        elif provider_key in {"custom", "custom_rs_vlm", "qwen", "geochat", "local"}:
+        elif provider_key in {"geochat", "geochat-7b", "geochat_7b"}:
+            from backend.ai.models.geochat_adapter import geochat_adapter
+            return geochat_adapter
+        elif provider_key in {"qwen", "qwen-vl", "qwen3-vl", "qwen3_vl_2b"}:
+            from backend.ai.models.qwen_adapter import qwen_adapter
+            return qwen_adapter
+        elif provider_key in {"custom", "custom_rs_vlm", "local"}:
             from backend.ai.models.custom_rs_vlm_adapter import custom_rs_vlm_adapter
             return custom_rs_vlm_adapter
 

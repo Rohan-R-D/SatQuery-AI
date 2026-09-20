@@ -68,6 +68,7 @@ class EvaluationRecord:
     failure_reason: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     is_synthetic: bool = True
+    is_mock: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -88,12 +89,14 @@ class EvaluationRecord:
             "failure_reason": self.failure_reason,
             "timestamp": self.timestamp,
             "is_synthetic": self.is_synthetic,
+            "is_mock": self.is_mock,
         }
 
 
 class EvaluationEngine:
     """
     Lightweight benchmark engine to evaluate model outputs and compute aggregate metrics.
+    Explicitly separates mock/offline evaluation runs from real model benchmark runs.
     """
 
     def __init__(self):
@@ -109,6 +112,7 @@ class EvaluationEngine:
         dataset_split: str = "val",
         runtime_ms: float = 0.0,
         is_synthetic: bool = True,
+        is_mock: bool = True,
     ) -> EvaluationRecord:
         """
         Evaluates a single prediction response dictionary against optional reference ground truth.
@@ -120,6 +124,9 @@ class EvaluationEngine:
         evidence = prediction_response.get("evidence", [])
         is_err = prediction_response.get("is_error", False)
         err_code = prediction_response.get("error_code")
+        
+        # Override is_mock if prediction_response specifies it explicitly
+        sample_is_mock = prediction_response.get("is_mock", is_mock)
 
         metrics = {}
         if reference_answer:
@@ -143,6 +150,7 @@ class EvaluationEngine:
             is_error=is_err,
             failure_reason=err_code if is_err else None,
             is_synthetic=is_synthetic,
+            is_mock=sample_is_mock,
         )
 
         self.records.append(record)
@@ -151,19 +159,33 @@ class EvaluationEngine:
     def compute_summary_statistics(self) -> Dict[str, Any]:
         """
         Computes summary statistics across all evaluated records in engine.
+        Separates mock evaluation counts from real evaluation counts.
         """
         if not self.records:
             return {
                 "total_records": 0,
+                "mock_records": 0,
+                "real_records": 0,
+                "eval_mode": "EMPTY",
                 "error_rate": 0.0,
                 "avg_runtime_ms": 0.0,
                 "mean_metrics": {},
                 "is_synthetic": True,
+                "is_mock": True,
             }
 
         total = len(self.records)
+        mock_count = sum(1 for r in self.records if r.is_mock)
+        real_count = total - mock_count
         errors = sum(1 for r in self.records if r.is_error)
         avg_runtime = sum(r.runtime_ms for r in self.records) / total
+
+        if mock_count == total:
+            eval_mode = "MOCK_OFFLINE"
+        elif real_count == total:
+            eval_mode = "REAL_BENCHMARK"
+        else:
+            eval_mode = "HYBRID"
 
         # Aggregate metric means
         metric_sums: Dict[str, float] = {}
@@ -178,8 +200,12 @@ class EvaluationEngine:
 
         return {
             "total_records": total,
+            "mock_records": mock_count,
+            "real_records": real_count,
+            "eval_mode": eval_mode,
             "error_rate": round(errors / total, 4),
             "avg_runtime_ms": round(avg_runtime, 2),
             "mean_metrics": mean_metrics,
             "is_synthetic": any(r.is_synthetic for r in self.records),
+            "is_mock": mock_count > 0,
         }
